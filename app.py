@@ -97,6 +97,12 @@ def delete_quote(id):
     flash('Quote deleted!', 'success')
     return redirect(url_for('index'))
 
+@app.route('/quotes_carousel')
+def quotes_carousel():
+    quotes = Quote.query.all()
+    quotes_data = [{"text": quote.text, "author": quote.author} for quote in quotes]
+    return render_template('quotes_carousel.html', quotes=quotes_data)
+
 if __name__ == '__main__':
     with app.app_context():
         # Ensure the database is created if it doesn't exist

@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div id="quote-container" class="d-flex justify-content-center align-items-center" style="height: 80vh;">
+    <div id="quote" class="text-center" style="font-size: 2rem;">
+      <p id="quote-text"></p>  <!-- Ensure this exists -->
+      <p id="quote-author"></p> <!-- Ensure this exists -->
+    </div>
+</div>
+
+  <button id="prev" class="btn btn-secondary">←</button>
+  <button id="next" class="btn btn-secondary">→</button>
+  
+<script>
+    const quoteTextElement = document.getElementById('quote-text');
+    const quoteAuthorElement = document.getElementById('quote-author');
+
+    let quotes = {{ quotes|tojson }};
+    
+    let currentIndex = 0;    
+
+    function showQuote(index) {
+      console.log(quotes);
+      quoteTextElement.innerText = quotes[index].text;
+      quoteAuthorElement.innerText = "- " + quotes[index].author;
+    }
+
+    function nextQuote() {
+      currentIndex = (currentIndex + 1) % quotes.length;
+      fadeOutIn(showQuote.bind(null, currentIndex));
+    }
+
+    function prevQuote() {
+      currentIndex = (currentIndex - 1 + quotes.length) % quotes.length;
+      fadeOutIn(showQuote.bind(null, currentIndex));
+    }
+
+    function fadeOutIn(callback) {
+      const container = document.getElementById('quote');
+      container.style.opacity = 0;
+      setTimeout(() => {
+        callback();
+        container.style.opacity = 1;
+      }, 500);
+    }
+
+    document.getElementById('next').addEventListener('click', nextQuote);
+    document.getElementById('prev').addEventListener('click', prevQuote);
+
+    setInterval(nextQuote, 4000); // Automatically cycle every 8 seconds
+
+    // Show the first quote
+    showQuote(currentIndex);
+</script>
+
+
+
+  <style>
+    #quote {
+      transition: opacity 0.5s ease-in-out;
+    }
+    #quote-container {
+      position: relative;
+    }
+    button {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+    #prev {
+      left: 10px;
+    }
+    #next {
+      right: 10px;
+    }
+  </style>
+{% endblock %}
