@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <h1>{{ 'Edit' if form.text.data else 'Add New' }} Quote</h1>
+  <form method="POST">
+    {{ form.hidden_tag() }}
+    <div class="form-group">
+      {{ form.text.label }} {{ form.text(class="form-control") }}
+    </div>
+    <div class="form-group">
+      {{ form.author.label }} {{ form.author(class="form-control") }}
+    </div>
+    <div class="form-group">
+      {{ form.category.label }} {{ form.category(class="form-control") }}
+    </div>
+    <button type="submit" class="btn btn-primary">{{ form.submit.label }}</button>
+  </form>
+{% endblock %}

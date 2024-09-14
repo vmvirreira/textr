@@ -10,11 +10,11 @@ import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'your_secret_key'  # Replace with your own secret key
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///bookmarks.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///quotes.db'
 #app.config['SQLALCHEMY_DATABASE_URI'] = f"sqlite:///bookmarkr/instance/bookmarks.db"
 print(os.getcwd())
 #app.config['SQLALCHEMY_DATABASE_URI'] ='sqlite:///' + os.path.join(os.getcwd(), 'bookmarkr/instance/bookmarks.db') 
-UPLOAD_FOLDER = 'bookmarkr/static/uploads'
+UPLOAD_FOLDER = 'textr/static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Ensure the upload folder exists
@@ -26,35 +26,43 @@ db = SQLAlchemy(app)
 # Models
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False, unique=True)
-    bookmarks = db.relationship('Bookmark', backref='category', lazy=True)
+    name = db.Column(db.String(100), nullable=False)
+    quotes = db.relationship('Quote', backref='category', lazy=True)
 
-class Bookmark(db.Model):
+class Quote(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(150), nullable=False)
-    url = db.Column(db.String(500), nullable=False)
-    image = db.Column(db.String(150))
-    order = db.Column(db.Integer, default=0)  # Add this to store the order of bookmarks
+    text = db.Column(db.String(500), nullable=False)
+    author = db.Column(db.String(100), nullable=False)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
 
-
 # Forms
-class BookmarkForm(FlaskForm):
-    title = StringField('Title', validators=[DataRequired()])
-    url = StringField('URL', validators=[DataRequired(), URL()])
-    image = FileField('Image', validators=[FileAllowed(['jpg', 'png', 'jpeg'], 'Images only!')])
-    category = SelectField('Category', coerce=int)
+class QuoteForm(FlaskForm):
+    text = StringField('Quote', validators=[DataRequired()])
+    author = StringField('Author', validators=[DataRequired()])
+    category = SelectField('Category', coerce=int, validators=[DataRequired()])
     submit = SubmitField('Submit')
 
 class CategoryForm(FlaskForm):
     name = StringField('Category Name', validators=[DataRequired()])
     submit = SubmitField('Submit')
 
-# Routes for Categories
-@app.route('/categories')
-def categories():
+# Routes
+@app.route('/')
+def index():
     categories = Category.query.all()
-    return render_template('categories.html', categories=categories)
+    return render_template('index.html', categories=categories)
+
+@app.route('/quote/new', methods=['GET', 'POST'])
+def new_quote():
+    form = QuoteForm()
+    form.category.choices = [(c.id, c.name) for c in Category.query.all()]
+    if form.validate_on_submit():
+        quote = Quote(text=form.text.data, author=form.author.data, category_id=form.category.data)
+        db.session.add(quote)
+        db.session.commit()
+        flash('Quote added successfully!', 'success')
+        return redirect(url_for('index'))
+    return render_template('quote_form.html', form=form)
 
 @app.route('/category/new', methods=['GET', 'POST'])
 def new_category():
@@ -63,116 +71,35 @@ def new_category():
         category = Category(name=form.name.data)
         db.session.add(category)
         db.session.commit()
-        flash('Category created successfully!', 'success')
-        return redirect(url_for('categories'))
+        flash('Category added successfully!', 'success')
+        return redirect(url_for('index'))
     return render_template('category_form.html', form=form)
 
-@app.route('/category/edit/<int:category_id>', methods=['GET', 'POST'])
-def edit_category(category_id):
-    category = Category.query.get_or_404(category_id)
-    form = CategoryForm(obj=category)
-    if form.validate_on_submit():
-        category.name = form.name.data
-        db.session.commit()
-        flash('Category updated successfully!', 'success')
-        return redirect(url_for('categories'))
-    return render_template('category_form.html', form=form)
-
-@app.route('/category/delete/<int:category_id>', methods=['POST'])
-def delete_category(category_id):
-    category = Category.query.get_or_404(category_id)
-    db.session.delete(category)
-    db.session.commit()
-    flash('Category deleted successfully!', 'success')
-    return redirect(url_for('categories'))
-
-# Routes for Bookmarks
-@app.route('/')
-def index():
-    categories = Category.query.all()
-    for category in categories:
-        category.bookmarks = Bookmark.query.filter_by(category_id=category.id).order_by(Bookmark.order).all()
-    return render_template('index.html', categories=categories)
-
-@app.route('/bookmark/new', methods=['GET', 'POST'])
-def new_bookmark():
-    form = BookmarkForm()
+@app.route('/quote/edit/<int:id>', methods=['GET', 'POST'])
+def edit_quote(id):
+    quote = Quote.query.get_or_404(id)
+    form = QuoteForm(obj=quote)
     form.category.choices = [(c.id, c.name) for c in Category.query.all()]
     if form.validate_on_submit():
-        filename = None
-        if form.image.data:
-            file = form.image.data
-            filename = secure_filename(file.filename)
-            # Ensure the upload directory exists before saving the file
-            if not os.path.exists(app.config['UPLOAD_FOLDER']):
-                os.makedirs(app.config['UPLOAD_FOLDER'])
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-        bookmark = Bookmark(
-            title=form.title.data,
-            url=form.url.data,
-            image=filename,
-            category_id=form.category.data
-        )
-        db.session.add(bookmark)
+        quote.text = form.text.data
+        quote.author = form.author.data
+        quote.category_id = form.category.data
         db.session.commit()
-        flash('Bookmark created successfully!', 'success')
+        flash('Quote updated!', 'success')
         return redirect(url_for('index'))
-    return render_template('bookmark_form.html', form=form)
+    return render_template('quote_form.html', form=form)
 
-@app.route('/bookmark/edit/<int:bookmark_id>', methods=['GET', 'POST'])
-def edit_bookmark(bookmark_id):
-    bookmark = Bookmark.query.get_or_404(bookmark_id)
-    form = BookmarkForm(obj=bookmark)
-    form.category.choices = [(c.id, c.name) for c in Category.query.all()]
-    if form.validate_on_submit():
-        if form.image.data:
-            file = form.image.data
-            filename = secure_filename(file.filename)
-            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            bookmark.image = filename
-        bookmark.title = form.title.data
-        bookmark.url = form.url.data
-        bookmark.category_id = form.category.data
-        db.session.commit()
-        flash('Bookmark updated successfully!', 'success')
-        return redirect(url_for('index'))
-    return render_template('bookmark_form.html', form=form, bookmark=bookmark)
-
-@app.route('/bookmark/delete/<int:bookmark_id>', methods=['POST'])
-def delete_bookmark(bookmark_id):
-    bookmark = Bookmark.query.get_or_404(bookmark_id)
-    db.session.delete(bookmark)
+@app.route('/quote/delete/<int:id>', methods=['POST'])
+def delete_quote(id):
+    quote = Quote.query.get_or_404(id)
+    db.session.delete(quote)
     db.session.commit()
-    flash('Bookmark deleted successfully!', 'success')
+    flash('Quote deleted!', 'success')
     return redirect(url_for('index'))
 
-@app.route('/uploads/<filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-@app.route('/update_bookmark_order', methods=['POST'])
-def update_bookmark_order():
-    data = request.get_json()
-
-    try:
-        category_id = data['category_id']
-        new_order = data['order']  # This is a list of bookmark IDs in the new order
-
-        # Loop through the new order and update the database
-        for index, bookmark_id in enumerate(new_order):
-            bookmark = Bookmark.query.get(bookmark_id)
-            if bookmark:
-                bookmark.order = index  # Assuming you have an 'order' field in the Bookmark model
-                db.session.commit()
-
-        return jsonify(success=True)
-    except Exception as e:
-        return jsonify(success=False, error=str(e))
-    
 if __name__ == '__main__':
     with app.app_context():
         # Ensure the database is created if it doesn't exist
-        if not os.path.exists('bookmarks.db'):
+        if not os.path.exists('quotes.db'):
             db.create_all()
     app.run(debug=True)
-
