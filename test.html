@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Bookmarks App</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet"
+          href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css"
+          crossorigin="anonymous">
+</head>
+<body>
+<div id="category-1">
+    <div id="bookmark-1" class="bookmark-card">Bookmark 1</div>
+    <div id="bookmark-2" class="bookmark-card">Bookmark 2</div>
+    <div id="bookmark-3" class="bookmark-card">Bookmark 3</div>
+  </div>
+  
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      new Sortable(document.getElementById('category-1'), {
+        animation: 150,
+        onEnd: function(evt) {
+          console.log('New order:', Array.from(evt.to.children).map(el => el.id));
+        }
+      });
+    });
+  </script>
+  <!-- Bootstrap JS and dependencies -->
+  <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"
+  crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.1/dist/umd/popper.min.js"
+  crossorigin="anonymous"></script>
+<script src="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"
+  crossorigin="anonymous"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
+
+</body>
+</html>

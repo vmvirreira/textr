@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<!--<h1>Bookmarks</h1>-->
+{% for category in categories %}
+  <h2>{{ category.name }}</h2>
+  <div class="row" id="category-{{ category.id }}" data-category-id="{{ category.id }}">
+    {% for bookmark in category.bookmarks %}
+      <div class="col-md-4 bookmark-card" id="bookmark-{{ bookmark.id }}">
+        <div class="card mb-4">
+          {% if bookmark.image %}
+          <img src="{{ url_for('static', filename='uploads/' + bookmark.image) }}" class="card-img-top" alt="{{ bookmark.title }}" style="width: 100px; height: 100px;">
+          {% endif %}
+          <div class="card-body">
+            <h5 class="card-title">{{ bookmark.title }}</h5>
+            <p class="card-text"><a href="{{ bookmark.url }}">{{ bookmark.url }}</a></p>
+            <a href="{{ url_for('edit_bookmark', bookmark_id=bookmark.id) }}" class="btn btn-primary">Edit</a>
+            <form action="{{ url_for('delete_bookmark', bookmark_id=bookmark.id) }}" method="post" style="display:inline;">
+              <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% endfor %}
+{% endblock %}
+
+ 
+<style>
+.bookmark-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.bookmark-card {
+    width: 100%; /* Ensure that cards inside the list take proper width */
+}
+</style>
+
+<style>
+    /* Style for the element being dragged */
+    .sortable-chosen {
+      border: 2px dashed #007bff;
+      background-color: #f8f9fa;
+    }
+  
+    /* Style for the "ghost" element that's being dragged */
+    .sortable-ghost {
+      opacity: 0.5;
+      background-color: #dee2e6;
+    }
+</style>
+  
