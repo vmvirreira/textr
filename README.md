@@ -15,16 +15,17 @@ $env:FLASK_APP = "app.py"
 .\.venv\Scripts\flask run
 ```
 
-Without `SUPABASE_DATABASE_URL` or `DATABASE_URL`, the app uses local SQLite at `instance/quotes.db`.
+Without Supabase or database environment variables, the app uses local SQLite at `instance/quotes.db`.
 
 ## Supabase Setup
 
 1. Create a Supabase project.
 2. In the Supabase SQL editor, run `supabase/schema.sql`.
-3. Copy the Transaction pooler connection string from Supabase Dashboard -> Connect.
-4. Set it as `SUPABASE_DATABASE_URL`.
+3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`.
 
-For Vercel/serverless, use Supabase transaction pooler port `6543`. The app configures SQLAlchemy with `NullPool` for Postgres so connections are short-lived.
+The app uses Supabase REST mode when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set. It can also use direct Postgres mode if `SUPABASE_DATABASE_URL` or `DATABASE_URL` is set.
+
+For direct Postgres mode on Vercel/serverless, use the Supabase transaction pooler port `6543`. The app configures SQLAlchemy with `NullPool` for Postgres so connections are short-lived.
 
 To copy the existing local SQLite data into Supabase:
 
@@ -39,7 +40,8 @@ Set these Vercel environment variables:
 
 ```text
 SECRET_KEY=<long random secret>
-SUPABASE_DATABASE_URL=<supabase transaction pooler connection string>
+SUPABASE_URL=<supabase project URL>
+SUPABASE_SERVICE_ROLE_KEY=<supabase service role key>
 ```
 
 Deploy from the project root with:
