@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "app.py": {
+      "excludeFiles": "{.git,.venv,venv,env,instance,__pycache__}/**"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/app.py"
+    }
+  ]
+}
