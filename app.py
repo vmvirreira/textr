@@ -53,9 +53,9 @@ def use_supabase_rest():
 
 class SupabaseRestClient:
     def __init__(self):
-        supabase_url = os.environ["SUPABASE_URL"].rstrip("/")
+        supabase_url = os.environ["SUPABASE_URL"].lstrip("\ufeff").strip().rstrip("/")
         self.base_url = supabase_url if supabase_url.endswith("/rest/v1") else supabase_url + "/rest/v1"
-        key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+        key = os.environ["SUPABASE_SERVICE_ROLE_KEY"].lstrip("\ufeff").strip()
         self.headers = {
             "apikey": key,
             "Authorization": f"Bearer {key}",
