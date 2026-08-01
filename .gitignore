@@ -1,6 +1,8 @@
 .env
 .env.*
 !.env.example
+.env.local
+.env.*.local
 .venv/
 venv/
 env/
