@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-md-6 col-lg-4">
+      <h1>Admin sign in</h1>
+      <form method="POST">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+          {{ form.token.label }}
+          {{ form.token(class="form-control", autocomplete="current-password") }}
+          {% for error in form.token.errors %}<small class="text-danger d-block">{{ error }}</small>{% endfor %}
+        </div>
+        {{ form.submit(class="btn btn-primary") }}
+      </form>
+    </div>
+  </div>
+{% endblock %}

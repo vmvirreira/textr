@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+      <h1>Add a quote</h1>
+      <p class="text-muted">Submissions are reviewed before they appear in Slides.</p>
+      <form method="POST">
+        {{ form.hidden_tag() }}
+        <div class="form-group">
+          {{ form.text.label }}
+          {{ form.text(class="form-control", rows="6", maxlength="500") }}
+          {% for error in form.text.errors %}<small class="text-danger d-block">{{ error }}</small>{% endfor %}
+        </div>
+        <div class="form-group">
+          {{ form.author.label }}
+          {{ form.author(class="form-control", maxlength="100") }}
+          {% for error in form.author.errors %}<small class="text-danger d-block">{{ error }}</small>{% endfor %}
+        </div>
+        {{ form.submit(class="btn btn-primary") }}
+      </form>
+    </div>
+  </div>
+{% endblock %}
