@@ -5,13 +5,16 @@
   <form method="POST">
     {{ form.hidden_tag() }}
     <div class="form-group">
-      {{ form.text.label }} {{ form.text(class="form-control") }}
+      {{ form.text.label }} {{ form.text(class="form-control", rows="5") }}
+      {% for error in form.text.errors %}<small class="text-danger d-block">{{ error }}</small>{% endfor %}
     </div>
     <div class="form-group">
       {{ form.author.label }} {{ form.author(class="form-control") }}
+      {% for error in form.author.errors %}<small class="text-danger d-block">{{ error }}</small>{% endfor %}
     </div>
     <div class="form-group">
       {{ form.category.label }} {{ form.category(class="form-control") }}
+      {% for error in form.category.errors %}<small class="text-danger d-block">{{ error }}</small>{% endfor %}
     </div>
     <button type="submit" class="btn btn-primary">{{ form.submit.label }}</button>
   </form>

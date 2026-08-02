@@ -1,77 +1,86 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div id="quote-container" class="d-flex justify-content-center align-items-center" style="height: 80vh;">
-    <div id="quote" class="text-center" style="font-size: 2rem;">
-      <p id="quote-text"></p>  <!-- Ensure this exists -->
-      <p id="quote-author"></p> <!-- Ensure this exists -->
-    </div>
+<div class="d-flex justify-content-end">
+  <a href="{{ url_for('submit_quote') }}" class="btn btn-primary">Add a quote</a>
 </div>
 
-  <button id="prev" class="btn btn-secondary">←</button>
-  <button id="next" class="btn btn-secondary">→</button>
-  
+<div id="quote-container" class="d-flex justify-content-center align-items-center">
+  <div id="quote" class="text-center">
+    <p id="quote-text"></p>
+    <p id="quote-author"></p>
+  </div>
+</div>
+
+<button id="prev" class="btn btn-secondary" aria-label="Previous quote">&larr;</button>
+<button id="next" class="btn btn-secondary" aria-label="Next quote">&rarr;</button>
+
 <script>
-    const quoteTextElement = document.getElementById('quote-text');
-    const quoteAuthorElement = document.getElementById('quote-author');
+  const quoteTextElement = document.getElementById('quote-text');
+  const quoteAuthorElement = document.getElementById('quote-author');
+  const quotes = {{ quotes|tojson }};
+  let currentIndex = 0;
 
-    let quotes = {{ quotes|tojson }};
-    
-    let currentIndex = 0;    
-
-    function showQuote(index) {
-      console.log(quotes);
-      quoteTextElement.innerText = quotes[index].text;
-      quoteAuthorElement.innerText = "- " + quotes[index].author;
+  function showQuote(index) {
+    if (!quotes.length) {
+      quoteTextElement.innerText = "No curated quotes yet.";
+      quoteAuthorElement.innerText = "";
+      return;
     }
+    quoteTextElement.innerText = quotes[index].text;
+    quoteAuthorElement.innerText = "- " + quotes[index].author;
+  }
 
-    function nextQuote() {
-      currentIndex = (currentIndex + 1) % quotes.length;
-      fadeOutIn(showQuote.bind(null, currentIndex));
-    }
+  function fadeOutIn(callback) {
+    const quote = document.getElementById('quote');
+    quote.style.opacity = 0;
+    setTimeout(() => {
+      callback();
+      quote.style.opacity = 1;
+    }, 500);
+  }
 
-    function prevQuote() {
-      currentIndex = (currentIndex - 1 + quotes.length) % quotes.length;
-      fadeOutIn(showQuote.bind(null, currentIndex));
-    }
+  function nextQuote() {
+    if (!quotes.length) return;
+    currentIndex = (currentIndex + 1) % quotes.length;
+    fadeOutIn(() => showQuote(currentIndex));
+  }
 
-    function fadeOutIn(callback) {
-      const container = document.getElementById('quote');
-      container.style.opacity = 0;
-      setTimeout(() => {
-        callback();
-        container.style.opacity = 1;
-      }, 500);
-    }
+  function prevQuote() {
+    if (!quotes.length) return;
+    currentIndex = (currentIndex - 1 + quotes.length) % quotes.length;
+    fadeOutIn(() => showQuote(currentIndex));
+  }
 
-    document.getElementById('next').addEventListener('click', nextQuote);
-    document.getElementById('prev').addEventListener('click', prevQuote);
+  document.getElementById('next').addEventListener('click', nextQuote);
+  document.getElementById('prev').addEventListener('click', prevQuote);
 
-    setInterval(nextQuote, 4000); // Automatically cycle every 8 seconds
-
-    // Show the first quote
-    showQuote(currentIndex);
+  if (quotes.length > 1) {
+    setInterval(nextQuote, 4000);
+  }
+  showQuote(currentIndex);
 </script>
 
-
-
-  <style>
-    #quote {
-      transition: opacity 0.5s ease-in-out;
-    }
-    #quote-container {
-      position: relative;
-    }
-    button {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-    }
-    #prev {
-      left: 10px;
-    }
-    #next {
-      right: 10px;
-    }
-  </style>
+<style>
+  #quote-container {
+    height: 72vh;
+  }
+  #quote {
+    max-width: 52rem;
+    padding: 1rem;
+    font-size: 2rem;
+    transition: opacity 0.5s ease-in-out;
+  }
+  #prev, #next {
+    position: fixed;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  #prev {
+    left: 10px;
+  }
+  #next {
+    right: 10px;
+  }
+</style>
 {% endblock %}

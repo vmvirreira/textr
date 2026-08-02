@@ -8,21 +8,31 @@
 </head>
 <body>
   <nav class="navbar navbar-expand-lg navbar-light bg-light">
-    <a class="navbar-brand" href="{{ url_for('index') }}">textr</a>
+    <a class="navbar-brand" href="{{ url_for('quotes_carousel') }}">textr</a>
     <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
         <span class="navbar-toggler-icon"></span>
     </button>
     <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav">
             <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('index') }}">Home</a>
+                <a class="nav-link" href="{{ url_for('quotes_carousel') }}">Slides</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('new_quote') }}">Add Quote</a>
+                <a class="nav-link" href="{{ url_for('submit_quote') }}">Add a quote</a>
             </li>
-            <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('quotes_carousel') }}">Slides</a> <!-- New "Slides" menu item -->
-            </li>
+            {% if is_admin %}
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">Admin</a></li>
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('manage_categories') }}">Categories</a></li>
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('new_quote') }}">Add curated quote</a></li>
+              <li class="nav-item">
+                <form method="POST" action="{{ url_for('admin_logout') }}">
+                  {{ logout_form.hidden_tag() }}
+                  <button type="submit" class="btn btn-link nav-link">Sign out</button>
+                </form>
+              </li>
+            {% else %}
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_login') }}">Admin</a></li>
+            {% endif %}
         </ul>
     </div>
   </nav>

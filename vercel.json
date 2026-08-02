@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "app.py": {
+      "excludeFiles": "{.git,.venv,venv,env,instance,__pycache__}/**"
+    }
+  }
+}

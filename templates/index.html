@@ -1,11 +1,15 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <h1>Quotes by Category</h1>
+  <h1>Admin: Quotes by Category</h1>
   <a href="{{ url_for('new_quote') }}" class="btn btn-primary mb-3">Add New Quote</a>
   <a href="{{ url_for('new_category') }}" class="btn btn-secondary mb-3">Add New Category</a>
+  <a href="{{ url_for('manage_categories') }}" class="btn btn-outline-secondary mb-3">Manage Categories</a>
   {% for category in categories %}
-    <h2>{{ category.name }}</h2>
+    <h2>
+      {{ category.name }}
+      {% if category.name == 'Pending Review' %}<span class="badge badge-warning">moderation queue</span>{% endif %}
+    </h2>
     {% for quote in category.quotes %}
       <div class="card mb-4">
         <div class="card-body">
@@ -13,12 +17,11 @@
           <p><strong>- {{ quote.author }}</strong></p>
           <a href="{{ url_for('edit_quote', id=quote.id) }}" class="btn btn-primary">Edit</a>
           <form action="{{ url_for('delete_quote', id=quote.id) }}" method="post" style="display:inline;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn btn-danger">Delete</button>
           </form>
         </div>
       </div>
     {% endfor %}
-  {% else %}
-    <p>No quotes available in this category.</p>
   {% endfor %}
 {% endblock %}

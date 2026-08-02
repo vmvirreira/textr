@@ -1,11 +1,12 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <h1>Add New Category</h1>
+  <h1>{{ 'Edit Category' if category else 'Add New Category' }}</h1>
   <form method="POST">
     {{ form.hidden_tag() }}
     <div class="form-group">
       {{ form.name.label }} {{ form.name(class="form-control") }}
+      {% for error in form.name.errors %}<small class="text-danger d-block">{{ error }}</small>{% endfor %}
     </div>
     <button type="submit" class="btn btn-primary">{{ form.submit.label }}</button>
   </form>
