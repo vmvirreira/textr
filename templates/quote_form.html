@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <h1>{{ 'Edit' if form.text.data else 'Add New' }} Quote</h1>
+  <h1>{{ 'Edit' if form.text.data else 'Add New' }} Item</h1>
   <form method="POST">
     {{ form.hidden_tag() }}
     <div class="form-group">

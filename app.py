@@ -1,13 +1,14 @@
 import os
 import json
 import hmac
+import random
 from functools import wraps
 from types import SimpleNamespace
-from urllib.error import HTTPError
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from flask import Flask, abort, flash, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect, FlaskForm
 from sqlalchemy.pool import NullPool
@@ -17,6 +18,12 @@ from wtforms.validators import DataRequired, Length
 db = SQLAlchemy()
 csrf = CSRFProtect()
 SUBMISSION_CATEGORY = "Pending Review"
+CONTENT_TYPES = {
+    "quotes": "Quotes",
+    "jokes": "Jokes",
+    "poems": "Poems",
+}
+SYSTEM_RANDOM = random.SystemRandom()
 
 
 def database_url():
@@ -191,8 +198,81 @@ def category_named(name):
     return next((category for category in all_categories() if category.name == name), None)
 
 
-def ensure_submission_category():
-    return category_named(SUBMISSION_CATEGORY) or create_category(SUBMISSION_CATEGORY)
+def is_pending_category(name):
+    return name.casefold().startswith(SUBMISSION_CATEGORY.casefold())
+
+
+def pending_category_name(content_type):
+    return f"{SUBMISSION_CATEGORY} - {CONTENT_TYPES[content_type]}"
+
+
+def ensure_submission_category(content_type="quotes"):
+    name = pending_category_name(content_type)
+    return category_named(name) or create_category(name)
+
+
+def content_type_for_category(name):
+    normalized = name.casefold()
+    if "joke" in normalized:
+        return "jokes"
+    if "poem" in normalized:
+        return "poems"
+    return "quotes"
+
+
+def fetch_json(url):
+    external_request = Request(
+        url,
+        headers={"Accept": "application/json", "User-Agent": "textr/1.0"},
+    )
+    try:
+        with urlopen(external_request, timeout=8) as response:
+            return json.loads(response.read().decode("utf-8"))
+    except (HTTPError, URLError, TimeoutError, json.JSONDecodeError) as error:
+        raise RuntimeError("The external content provider is temporarily unavailable.") from error
+
+
+def fetch_external_content(content_type):
+    if content_type == "quotes":
+        payload = fetch_json("https://zenquotes.io/api/random")
+        if not isinstance(payload, list) or not payload or not payload[0].get("q"):
+            raise RuntimeError("The quote provider returned an invalid response.")
+        return {
+            "text": payload[0]["q"].strip(),
+            "author": (payload[0].get("a") or "Unknown").strip(),
+            "category": "quotes",
+            "source": "ZenQuotes",
+            "source_url": "https://zenquotes.io/",
+        }
+
+    if content_type == "jokes":
+        payload = fetch_json("https://v2.jokeapi.dev/joke/Any?type=single&safe-mode")
+        if payload.get("error") or not payload.get("joke"):
+            raise RuntimeError("The joke provider returned an invalid response.")
+        return {
+            "text": payload["joke"].strip(),
+            "author": "JokeAPI",
+            "category": "jokes",
+            "source": "JokeAPI",
+            "source_url": "https://jokeapi.dev/",
+        }
+
+    payload = fetch_json("https://poetrydb.org/random/1")
+    if not isinstance(payload, list) or not payload or not payload[0].get("lines"):
+        raise RuntimeError("The poem provider returned an invalid response.")
+    poem = payload[0]
+    lines = [line.strip() for line in poem["lines"][:24]]
+    text = "\n".join(lines).strip()
+    if len(poem["lines"]) > 24:
+        text += "\n..."
+    return {
+        "text": text[:2000],
+        "author": (poem.get("author") or "Unknown").strip(),
+        "title": (poem.get("title") or "Untitled").strip(),
+        "category": "poems",
+        "source": "PoetryDB",
+        "source_url": "https://poetrydb.org/",
+    }
 
 
 def create_quote(text, author, category_id):
@@ -255,8 +335,8 @@ class Quote(db.Model):
 
 
 class QuoteForm(FlaskForm):
-    text = TextAreaField("Quote", validators=[DataRequired(), Length(max=500)])
-    author = StringField("Author", validators=[DataRequired(), Length(max=100)])
+    text = TextAreaField("Text", validators=[DataRequired(), Length(max=500)])
+    author = StringField("Author or source", validators=[DataRequired(), Length(max=100)])
     category = SelectField("Category", coerce=int, validators=[DataRequired()])
     submit = SubmitField("Submit")
 
@@ -267,8 +347,13 @@ class CategoryForm(FlaskForm):
 
 
 class PublicQuoteForm(FlaskForm):
-    text = TextAreaField("Quote", validators=[DataRequired(), Length(max=500)])
-    author = StringField("Author", validators=[DataRequired(), Length(max=100)])
+    content_type = SelectField(
+        "Type",
+        choices=[(key, label[:-1] if label.endswith("s") else label) for key, label in CONTENT_TYPES.items()],
+        validators=[DataRequired()],
+    )
+    text = TextAreaField("Text", validators=[DataRequired(), Length(max=500)])
+    author = StringField("Author or source", validators=[DataRequired(), Length(max=100)])
     submit = SubmitField("Submit for review")
 
 
@@ -315,10 +400,10 @@ def register_routes(app):
     def submit_quote():
         form = PublicQuoteForm()
         if form.validate_on_submit():
-            category = ensure_submission_category()
+            category = ensure_submission_category(form.content_type.data)
             category_id = category["id"] if isinstance(category, dict) else category.id
             create_quote(form.text.data, form.author.data, category_id)
-            flash("Thanks. Your quote was submitted for review.", "success")
+            flash("Thanks. Your submission was sent for review.", "success")
             return redirect(url_for("quotes_carousel"))
         return render_template("submit_quote.html", form=form)
 
@@ -442,12 +527,47 @@ def register_routes(app):
 
     @app.route("/quotes_carousel")
     def quotes_carousel():
-        curated_category_ids = {
-            category.id for category in all_categories() if category.name != SUBMISSION_CATEGORY
+        categories = all_categories()
+        category_by_id = {
+            category.id: category
+            for category in categories
+            if not is_pending_category(category.name)
         }
-        quotes = [quote for quote in all_quotes() if quote.category_id in curated_category_ids]
-        quotes_data = [{"text": quote.text, "author": quote.author} for quote in quotes]
-        return render_template("quotes_carousel.html", quotes=quotes_data)
+        quotes_data = [
+            {
+                "text": quote.text,
+                "author": quote.author,
+                "category": content_type_for_category(category_by_id[quote.category_id].name),
+                "source": "textr",
+            }
+            for quote in all_quotes()
+            if quote.category_id in category_by_id
+        ]
+        SYSTEM_RANDOM.shuffle(quotes_data)
+        selected = request.args.get("category", "all").casefold()
+        if selected not in {"all", *CONTENT_TYPES}:
+            selected = "all"
+        return render_template(
+            "quotes_carousel.html",
+            quotes=quotes_data,
+            content_types=CONTENT_TYPES,
+            selected_category=selected,
+        )
+
+    @app.get("/api/content/random")
+    def random_external_content():
+        content_type = request.args.get("type", "all").casefold()
+        if content_type not in {"all", *CONTENT_TYPES}:
+            return jsonify({"error": "Choose all, quotes, jokes, or poems."}), 400
+        if content_type == "all":
+            content_type = SYSTEM_RANDOM.choice(list(CONTENT_TYPES))
+        try:
+            item = fetch_external_content(content_type)
+        except RuntimeError as error:
+            return jsonify({"error": str(error)}), 503
+        response = jsonify(item)
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
 
 app = create_app()

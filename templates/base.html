@@ -18,12 +18,12 @@
                 <a class="nav-link" href="{{ url_for('quotes_carousel') }}">Slides</a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="{{ url_for('submit_quote') }}">Add a quote</a>
+                <a class="nav-link" href="{{ url_for('submit_quote') }}">Add something</a>
             </li>
             {% if is_admin %}
               <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">Admin</a></li>
               <li class="nav-item"><a class="nav-link" href="{{ url_for('manage_categories') }}">Categories</a></li>
-              <li class="nav-item"><a class="nav-link" href="{{ url_for('new_quote') }}">Add curated quote</a></li>
+              <li class="nav-item"><a class="nav-link" href="{{ url_for('new_quote') }}">Add curated item</a></li>
               <li class="nav-item">
                 <form method="POST" action="{{ url_for('admin_logout') }}">
                   {{ logout_form.hidden_tag() }}
