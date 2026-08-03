@@ -130,12 +130,22 @@
     }
   }
 
-  async function nextItem() {
+  async function nextItem(allowExternal = true) {
     if (currentIndex < items.length - 1) {
       transitionTo(() => {
         currentIndex += 1;
         renderItem();
       });
+      return;
+    }
+
+    if (!allowExternal) {
+      const reshuffled = filteredLocalItems();
+      if (reshuffled.length) {
+        items = reshuffled;
+        currentIndex = 0;
+        transitionTo(renderItem);
+      }
       return;
     }
 
@@ -193,7 +203,7 @@
 
   function restartTimer() {
     window.clearInterval(timer);
-    if (playing) timer = window.setInterval(nextItem, 8000);
+    if (playing) timer = window.setInterval(() => nextItem(false), 8000);
   }
 
   function togglePlayback() {
