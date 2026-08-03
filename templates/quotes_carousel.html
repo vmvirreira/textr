@@ -1,86 +1,372 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="d-flex justify-content-end">
-  <a href="{{ url_for('submit_quote') }}" class="btn btn-primary">Add a quote</a>
-</div>
-
-<div id="quote-container" class="d-flex justify-content-center align-items-center">
-  <div id="quote" class="text-center">
-    <p id="quote-text"></p>
-    <p id="quote-author"></p>
+<main class="slides-page">
+  <div class="slides-heading">
+    <div>
+      <p class="eyebrow">Etherland words</p>
+      <h1>textr</h1>
+    </div>
+    <a href="{{ url_for('submit_quote') }}" class="btn btn-dark">Add something</a>
   </div>
-</div>
 
-<button id="prev" class="btn btn-secondary" aria-label="Previous quote">&larr;</button>
-<button id="next" class="btn btn-secondary" aria-label="Next quote">&rarr;</button>
+  <div class="category-wheel" role="group" aria-label="Choose a content type">
+    <button class="wheel-option wheel-all" data-category="all" type="button">All</button>
+    {% for key, label in content_types.items() %}
+      <button class="wheel-option wheel-{{ key }}" data-category="{{ key }}" type="button">{{ label }}</button>
+    {% endfor %}
+  </div>
+
+  <section id="content-stage" class="content-stage" aria-live="polite">
+    <p id="content-type" class="content-type"></p>
+    <h2 id="content-title" class="content-title" hidden></h2>
+    <p id="content-text" class="content-text"></p>
+    <p id="content-author" class="content-author"></p>
+    <p id="content-source" class="content-source" hidden>
+      From <a id="content-source-link" href="" target="_blank" rel="noopener noreferrer"></a>
+    </p>
+  </section>
+
+  <div class="slide-controls" aria-label="Slide controls">
+    <button id="prev" class="slide-button" type="button" aria-label="Previous item" title="Previous">&larr;</button>
+    <button id="pause" class="slide-button pause-button" type="button" aria-label="Pause slides" title="Pause">&#10074;&#10074;</button>
+    <button id="next" class="slide-button" type="button" aria-label="Next item" title="Next">&rarr;</button>
+  </div>
+  <p id="slide-status" class="slide-status" role="status"></p>
+</main>
 
 <script>
-  const quoteTextElement = document.getElementById('quote-text');
-  const quoteAuthorElement = document.getElementById('quote-author');
-  const quotes = {{ quotes|tojson }};
-  let currentIndex = 0;
+  const localItems = {{ quotes|tojson }};
+  const initialCategory = {{ selected_category|tojson }};
+  const typeLabels = {{ content_types|tojson }};
+  const textElement = document.getElementById('content-text');
+  const authorElement = document.getElementById('content-author');
+  const titleElement = document.getElementById('content-title');
+  const typeElement = document.getElementById('content-type');
+  const sourceElement = document.getElementById('content-source');
+  const sourceLinkElement = document.getElementById('content-source-link');
+  const statusElement = document.getElementById('slide-status');
+  const stageElement = document.getElementById('content-stage');
+  const prevButton = document.getElementById('prev');
+  const nextButton = document.getElementById('next');
+  const pauseButton = document.getElementById('pause');
+  const wheelButtons = [...document.querySelectorAll('.wheel-option')];
 
-  function showQuote(index) {
-    if (!quotes.length) {
-      quoteTextElement.innerText = "No curated quotes yet.";
-      quoteAuthorElement.innerText = "";
+  let selectedCategory = initialCategory;
+  let items = [];
+  let currentIndex = 0;
+  let loading = false;
+  let playing = true;
+  let timer;
+
+  function shuffled(values) {
+    const result = [...values];
+    for (let index = result.length - 1; index > 0; index -= 1) {
+      const swapIndex = Math.floor(Math.random() * (index + 1));
+      [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+    }
+    return result;
+  }
+
+  function filteredLocalItems() {
+    const matches = selectedCategory === 'all'
+      ? localItems
+      : localItems.filter((item) => item.category === selectedCategory);
+    return shuffled(matches);
+  }
+
+  function renderItem() {
+    const item = items[currentIndex];
+    if (!item) {
+      typeElement.textContent = selectedCategory === 'all' ? 'All' : typeLabels[selectedCategory];
+      textElement.textContent = 'Finding something for you...';
+      authorElement.textContent = '';
+      titleElement.hidden = true;
+      sourceElement.hidden = true;
+      prevButton.disabled = true;
       return;
     }
-    quoteTextElement.innerText = quotes[index].text;
-    quoteAuthorElement.innerText = "- " + quotes[index].author;
+
+    typeElement.textContent = typeLabels[item.category] || 'Words';
+    textElement.textContent = item.text;
+    authorElement.textContent = item.author ? `- ${item.author}` : '';
+    titleElement.textContent = item.title || '';
+    titleElement.hidden = !item.title;
+    if (item.source_url) {
+      sourceLinkElement.href = item.source_url;
+      sourceLinkElement.textContent = item.source;
+      sourceElement.hidden = false;
+    } else {
+      sourceElement.hidden = true;
+    }
+    prevButton.disabled = currentIndex === 0;
   }
 
-  function fadeOutIn(callback) {
-    const quote = document.getElementById('quote');
-    quote.style.opacity = 0;
-    setTimeout(() => {
+  function transitionTo(callback) {
+    stageElement.classList.add('is-changing');
+    window.setTimeout(() => {
       callback();
-      quote.style.opacity = 1;
-    }, 500);
+      stageElement.classList.remove('is-changing');
+    }, 180);
   }
 
-  function nextQuote() {
-    if (!quotes.length) return;
-    currentIndex = (currentIndex + 1) % quotes.length;
-    fadeOutIn(() => showQuote(currentIndex));
+  async function fetchExternalItem() {
+    if (loading) return null;
+    loading = true;
+    nextButton.disabled = true;
+    statusElement.textContent = 'Finding another item...';
+    try {
+      const response = await fetch(`/api/content/random?type=${encodeURIComponent(selectedCategory)}`);
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'Content provider unavailable.');
+      statusElement.textContent = `Added from ${payload.source}.`;
+      return payload;
+    } catch (error) {
+      statusElement.textContent = 'The outside source is unavailable. Local items were reshuffled.';
+      return null;
+    } finally {
+      loading = false;
+      nextButton.disabled = false;
+    }
   }
 
-  function prevQuote() {
-    if (!quotes.length) return;
-    currentIndex = (currentIndex - 1 + quotes.length) % quotes.length;
-    fadeOutIn(() => showQuote(currentIndex));
+  async function nextItem(allowExternal = true) {
+    if (currentIndex < items.length - 1) {
+      transitionTo(() => {
+        currentIndex += 1;
+        renderItem();
+      });
+      return;
+    }
+
+    if (!allowExternal) {
+      const reshuffled = filteredLocalItems();
+      if (reshuffled.length) {
+        items = reshuffled;
+        currentIndex = 0;
+        transitionTo(renderItem);
+      }
+      return;
+    }
+
+    const externalItem = await fetchExternalItem();
+    if (externalItem) {
+      items.push(externalItem);
+      transitionTo(() => {
+        currentIndex += 1;
+        renderItem();
+      });
+      return;
+    }
+
+    const reshuffled = filteredLocalItems();
+    if (reshuffled.length) {
+      items = reshuffled;
+      currentIndex = 0;
+      transitionTo(renderItem);
+    }
   }
 
-  document.getElementById('next').addEventListener('click', nextQuote);
-  document.getElementById('prev').addEventListener('click', prevQuote);
-
-  if (quotes.length > 1) {
-    setInterval(nextQuote, 4000);
+  function previousItem() {
+    if (currentIndex === 0) return;
+    transitionTo(() => {
+      currentIndex -= 1;
+      renderItem();
+    });
   }
-  showQuote(currentIndex);
+
+  async function chooseCategory(category) {
+    selectedCategory = category;
+    currentIndex = 0;
+    items = filteredLocalItems();
+    wheelButtons.forEach((button) => {
+      const active = button.dataset.category === selectedCategory;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+    const url = new URL(window.location.href);
+    url.searchParams.set('category', selectedCategory);
+    window.history.replaceState({}, '', url);
+    statusElement.textContent = items.length
+      ? `${items.length} local ${items.length === 1 ? 'item' : 'items'}, in a new order.`
+      : 'No local items in this category yet.';
+    renderItem();
+    if (!items.length) {
+      const externalItem = await fetchExternalItem();
+      if (externalItem && selectedCategory === category) {
+        items = [externalItem];
+        renderItem();
+      }
+    }
+    restartTimer();
+  }
+
+  function restartTimer() {
+    window.clearInterval(timer);
+    if (playing) timer = window.setInterval(() => nextItem(false), 8000);
+  }
+
+  function togglePlayback() {
+    playing = !playing;
+    pauseButton.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
+    pauseButton.setAttribute('aria-label', playing ? 'Pause slides' : 'Play slides');
+    pauseButton.title = playing ? 'Pause' : 'Play';
+    restartTimer();
+  }
+
+  prevButton.addEventListener('click', () => {
+    previousItem();
+    restartTimer();
+  });
+  nextButton.addEventListener('click', () => {
+    nextItem();
+    restartTimer();
+  });
+  pauseButton.addEventListener('click', togglePlayback);
+  wheelButtons.forEach((button) => {
+    button.addEventListener('click', () => chooseCategory(button.dataset.category));
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft') previousItem();
+    if (event.key === 'ArrowRight') nextItem();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) window.clearInterval(timer);
+    else restartTimer();
+  });
+
+  chooseCategory(initialCategory);
 </script>
 
 <style>
-  #quote-container {
-    height: 72vh;
+  .slides-page {
+    min-height: calc(100vh - 7rem);
+    padding-bottom: 2rem;
+    color: #151a17;
   }
-  #quote {
-    max-width: 52rem;
-    padding: 1rem;
+  .slides-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .slides-heading h1 {
+    margin: 0;
     font-size: 2rem;
-    transition: opacity 0.5s ease-in-out;
+    font-weight: 600;
   }
-  #prev, #next {
-    position: fixed;
-    top: 50%;
-    transform: translateY(-50%);
+  .eyebrow,
+  .content-type {
+    margin: 0 0 0.25rem;
+    color: #44705a;
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0;
+    text-transform: uppercase;
   }
-  #prev {
-    left: 10px;
+  .category-wheel {
+    position: relative;
+    width: 12rem;
+    height: 12rem;
+    margin: 0.5rem auto 0;
+    border: 1px solid #cbd5cf;
+    border-radius: 50%;
+    background: #f5f7f6;
   }
-  #next {
-    right: 10px;
+  .wheel-option {
+    position: absolute;
+    min-width: 4.5rem;
+    min-height: 2.5rem;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid #9eaca5;
+    border-radius: 1.25rem;
+    background: #ffffff;
+    color: #27352e;
+    font-weight: 600;
+    transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+  }
+  .wheel-option:hover,
+  .wheel-option:focus-visible {
+    border-color: #1f5b3e;
+    outline: none;
+  }
+  .wheel-option.is-active {
+    border-color: #173f2c;
+    background: #173f2c;
+    color: #ffffff;
+  }
+  .wheel-all { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .wheel-quotes { left: 50%; top: 0.55rem; transform: translateX(-50%); }
+  .wheel-jokes { left: 0.1rem; bottom: 1rem; }
+  .wheel-poems { right: 0.1rem; bottom: 1rem; }
+  .content-stage {
+    display: flex;
+    min-height: 20rem;
+    max-width: 54rem;
+    margin: 0 auto;
+    padding: 2rem 1rem 1rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    opacity: 1;
+    transition: opacity 180ms ease;
+  }
+  .content-stage.is-changing { opacity: 0; }
+  .content-title {
+    margin: 0.5rem 0;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  .content-text {
+    margin: 0;
+    font-size: 2rem;
+    line-height: 1.5;
+    white-space: pre-line;
+  }
+  .content-author { margin: 1.25rem 0 0; color: #44524b; }
+  .content-source { margin: 0.5rem 0 0; color: #65736c; font-size: 0.8rem; }
+  .content-source a { color: inherit; text-decoration: underline; }
+  .slide-controls {
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+  }
+  .slide-button {
+    width: 3rem;
+    height: 3rem;
+    border: 1px solid #88968f;
+    border-radius: 50%;
+    background: #ffffff;
+    color: #173f2c;
+    font-size: 1.25rem;
+  }
+  .slide-button:hover:not(:disabled),
+  .slide-button:focus-visible {
+    border-color: #173f2c;
+    background: #eef3f0;
+    outline: none;
+  }
+  .slide-button:disabled { cursor: not-allowed; opacity: 0.35; }
+  .pause-button { font-size: 0.8rem; }
+  .slide-status {
+    min-height: 1.25rem;
+    margin: 0.75rem 0 0;
+    color: #65736c;
+    font-size: 0.8rem;
+    text-align: center;
+  }
+  @media (max-width: 575px) {
+    .slides-page { min-height: calc(100vh - 6rem); }
+    .category-wheel { width: 10.5rem; height: 10.5rem; }
+    .wheel-option { min-width: 4rem; font-size: 0.85rem; }
+    .content-stage { min-height: 18rem; padding-top: 1.25rem; }
+    .content-text { font-size: 1.35rem; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .content-stage,
+    .wheel-option { transition: none; }
   }
 </style>
 {% endblock %}

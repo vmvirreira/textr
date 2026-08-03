@@ -3,10 +3,15 @@
 {% block content %}
   <div class="row justify-content-center">
     <div class="col-md-8 col-lg-6">
-      <h1>Add a quote</h1>
+      <h1>Add something</h1>
       <p class="text-muted">Submissions are reviewed before they appear in Slides.</p>
       <form method="POST">
         {{ form.hidden_tag() }}
+        <div class="form-group">
+          {{ form.content_type.label }}
+          {{ form.content_type(class="form-control") }}
+          {% for error in form.content_type.errors %}<small class="text-danger d-block">{{ error }}</small>{% endfor %}
+        </div>
         <div class="form-group">
           {{ form.text.label }}
           {{ form.text(class="form-control", rows="6", maxlength="500") }}

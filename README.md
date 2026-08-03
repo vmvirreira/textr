@@ -1,6 +1,6 @@
 # textr
 
-Small Flask app for presenting curated quotes and moderating public submissions.
+Small Flask app for presenting curated quotes, jokes, and poems while moderating public submissions.
 
 ## Local Development
 
@@ -26,13 +26,25 @@ Without Supabase or database environment variables, the app uses local SQLite at
 
 The app uses Supabase REST mode when `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are set. It can also use direct Postgres mode if `SUPABASE_DATABASE_URL` or `DATABASE_URL` is set.
 
-Public submissions are always stored in the `Pending Review` category. Quotes in that category are excluded from Slides until an administrator moves them to another category.
+Public submissions are stored in type-specific moderation categories such as `Pending Review - Quotes`, `Pending Review - Jokes`, and `Pending Review - Poems`. Every pending category is excluded from Slides until an administrator moves the item to a public category.
+
+Create the public `Quotes`, `Jokes`, and `Poems` categories in Supabase. Existing categories that do not contain `joke` or `poem` in their name are treated as quotes for display purposes.
+
+## Slides and external sources
+
+Every Slides request shuffles the local Supabase content. Visitors can select All, Quotes, Jokes, or Poems from the category wheel. Once they reach the end of the selected local set, the browser requests another item from `/api/content/random`:
+
+- Quotes: ZenQuotes
+- Jokes: JokeAPI with `safe-mode`
+- Poems: PoetryDB
+
+External requests run on the server, use short timeouts, and do not require browser-side credentials. Provider content is labeled and linked in the slide. If a provider is unavailable, the carousel reshuffles the local set instead of failing.
 
 ## Administration
 
 Open `/admin/login` and enter the `ADMIN_TOKEN`. The authenticated admin area supports adding, editing, moving, and deleting quotes, plus adding, editing, and deleting empty categories.
 
-Public visitors can submit quotes at `/submit`. They cannot choose a category or access administrative routes.
+Public visitors can submit a quote, joke, or poem at `/submit`. They choose the intended type, but cannot publish directly or access administrative routes.
 
 For direct Postgres mode on Vercel/serverless, use the Supabase transaction pooler port `6543`. The app configures SQLAlchemy with `NullPool` for Postgres so connections are short-lived.
 

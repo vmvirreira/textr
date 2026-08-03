@@ -1,5 +1,6 @@
 import os
 import unittest
+from unittest.mock import patch
 
 os.environ["ADMIN_TOKEN"] = "test-admin-token"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
@@ -44,25 +45,25 @@ class TextrRoutesTest(unittest.TestCase):
 
         response = self.client.post(
             "/submit",
-            data={"text": "A pending quote", "author": "Visitor"},
+            data={"content_type": "quotes", "text": "A pending quote", "author": "Visitor"},
             follow_redirects=True,
         )
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"submitted for review", response.data)
+        self.assertIn(b"sent for review", response.data)
 
         slides = self.client.get("/quotes_carousel")
         self.assertIn(b"A curated quote", slides.data)
         self.assertNotIn(b"A pending quote", slides.data)
 
         with app.app_context():
-            pending = Category.query.filter_by(name="Pending Review").one()
+            pending = Category.query.filter_by(name="Pending Review - Quotes").one()
             quote = Quote.query.filter_by(text="A pending quote").one()
             self.assertEqual(quote.category_id, pending.id)
 
     def test_admin_can_publish_a_pending_quote(self):
         self.client.post(
             "/submit",
-            data={"text": "Publish me", "author": "Visitor"},
+            data={"content_type": "quotes", "text": "Publish me", "author": "Visitor"},
         )
         with app.app_context():
             curated = create_category("Quotes")
@@ -98,6 +99,68 @@ class TextrRoutesTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         with app.app_context():
             self.assertIsNotNone(Category.query.filter_by(name="Renamed").first())
+
+    def test_public_joke_submission_keeps_its_type_in_moderation(self):
+        response = self.client.post(
+            "/submit",
+            data={"content_type": "jokes", "text": "A pending joke", "author": "Visitor"},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        with app.app_context():
+            pending = Category.query.filter_by(name="Pending Review - Jokes").one()
+            joke = Quote.query.filter_by(text="A pending joke").one()
+            self.assertEqual(joke.category_id, pending.id)
+
+        slides = self.client.get("/quotes_carousel?category=jokes")
+        self.assertNotIn(b"A pending joke", slides.data)
+
+    def test_slides_include_content_types_and_controls_below_content(self):
+        with app.app_context():
+            quotes = create_category("Quotes")
+            jokes = create_category("Jokes")
+            poems = create_category("Poems")
+            create_quote("Quote text", "Quote author", quotes.id)
+            create_quote("Joke text", "Joke source", jokes.id)
+            create_quote("Poem text", "Poem author", poems.id)
+
+        response = self.client.get("/quotes_carousel?category=jokes")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'"category": "jokes"', response.data)
+        self.assertIn(b'"category": "poems"', response.data)
+        self.assertLess(response.data.index(b'id="content-stage"'), response.data.index(b'id="prev"'))
+
+    def test_slides_shuffle_local_items_for_each_view(self):
+        with app.app_context():
+            category = create_category("Quotes")
+            create_quote("First item", "One", category.id)
+            create_quote("Second item", "Two", category.id)
+
+        with patch("app.SYSTEM_RANDOM.shuffle", side_effect=lambda values: values.reverse()) as shuffle:
+            response = self.client.get("/quotes_carousel")
+
+        self.assertEqual(response.status_code, 200)
+        shuffle.assert_called_once()
+        self.assertLess(response.data.index(b"Second item"), response.data.index(b"First item"))
+
+    @patch("app.fetch_external_content")
+    def test_external_content_endpoint_returns_labeled_item(self, fetch_external_content):
+        fetch_external_content.return_value = {
+            "text": "API joke",
+            "author": "JokeAPI",
+            "category": "jokes",
+            "source": "JokeAPI",
+            "source_url": "https://jokeapi.dev/",
+        }
+        response = self.client.get("/api/content/random?type=jokes")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["category"], "jokes")
+        fetch_external_content.assert_called_once_with("jokes")
+
+    def test_external_content_endpoint_rejects_unknown_type(self):
+        response = self.client.get("/api/content/random?type=stories")
+        self.assertEqual(response.status_code, 400)
 
 
 if __name__ == "__main__":

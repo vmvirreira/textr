@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
 
 {% block content %}
-  <h1>Admin: Quotes by Category</h1>
-  <a href="{{ url_for('new_quote') }}" class="btn btn-primary mb-3">Add New Quote</a>
+  <h1>Admin: Words by Category</h1>
+  <a href="{{ url_for('new_quote') }}" class="btn btn-primary mb-3">Add New Item</a>
   <a href="{{ url_for('new_category') }}" class="btn btn-secondary mb-3">Add New Category</a>
   <a href="{{ url_for('manage_categories') }}" class="btn btn-outline-secondary mb-3">Manage Categories</a>
   {% for category in categories %}
     <h2>
       {{ category.name }}
-      {% if category.name == 'Pending Review' %}<span class="badge badge-warning">moderation queue</span>{% endif %}
+      {% if category.name.startswith('Pending Review') %}<span class="badge badge-warning">moderation queue</span>{% endif %}
     </h2>
     {% for quote in category.quotes %}
       <div class="card mb-4">
