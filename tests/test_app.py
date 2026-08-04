@@ -217,6 +217,8 @@ class TextrRoutesTest(unittest.TestCase):
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         self.assertIn(b"prefetchExternalItem()", response.data)
         self.assertIn(b"cache: 'no-store'", response.data)
+        self.assertIn(b"if (navigating) return", response.data)
+        self.assertIn(b"currentIndex = items.length - 1", response.data)
         self.assertNotIn(b"items = localFallback", response.data)
         self.assertIn(
             b'id="radio-play" class="radio-play" type="button" aria-label="Play background radio" title="Play"></button>',

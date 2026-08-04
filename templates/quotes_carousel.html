@@ -77,7 +77,7 @@
   let selectedCategory = initialCategory;
   let items = [];
   let currentIndex = 0;
-  let loading = false;
+  let navigating = false;
   let playing = true;
   let externalItemPromise = null;
   let externalRequestCategory = null;
@@ -158,11 +158,8 @@
   }
 
   async function fetchExternalItem() {
-    if (loading) return null;
     if (!externalItemPromise || externalRequestCategory !== selectedCategory) prefetchExternalItem();
     const requestPromise = externalItemPromise;
-    loading = true;
-    nextButton.disabled = true;
     statusElement.textContent = 'Finding another item...';
     try {
       const result = await requestPromise;
@@ -177,43 +174,57 @@
         externalItemPromise = null;
         externalRequestCategory = null;
       }
-      loading = false;
-      nextButton.disabled = false;
     }
   }
 
   async function nextItem() {
-    if (currentIndex < items.length - 1) {
-      await transitionTo(() => {
-        currentIndex += 1;
-        renderItem();
-      });
-      return;
-    }
+    if (navigating) return;
+    navigating = true;
+    nextButton.disabled = true;
+    try {
+      if (items.length && currentIndex >= items.length) currentIndex = items.length - 1;
+      if (currentIndex < items.length - 1) {
+        await transitionTo(() => {
+          currentIndex += 1;
+          renderItem();
+        });
+        return;
+      }
 
-    const externalItem = await fetchExternalItem();
-    if (externalItem) {
+      const externalItem = await fetchExternalItem();
+      if (!externalItem) return;
+
       items.push(externalItem);
       prefetchExternalItem();
       await transitionTo(() => {
-        currentIndex += 1;
         if (items.length > itemHistoryLimit) {
           items.shift();
-          currentIndex -= 1;
         }
+        currentIndex = items.length - 1;
         renderItem();
       });
-      return;
+    } finally {
+      navigating = false;
+      nextButton.disabled = false;
+      prevButton.disabled = currentIndex === 0;
     }
-
   }
 
   async function previousItem() {
-    if (currentIndex === 0) return;
-    await transitionTo(() => {
-      currentIndex -= 1;
-      renderItem();
-    });
+    if (navigating || currentIndex === 0) return;
+    navigating = true;
+    prevButton.disabled = true;
+    nextButton.disabled = true;
+    try {
+      await transitionTo(() => {
+        currentIndex = Math.min(currentIndex - 1, items.length - 1);
+        renderItem();
+      });
+    } finally {
+      navigating = false;
+      nextButton.disabled = false;
+      prevButton.disabled = currentIndex === 0;
+    }
   }
 
   async function chooseCategory(category) {
