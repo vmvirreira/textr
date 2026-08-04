@@ -130,6 +130,12 @@ class TextrRoutesTest(unittest.TestCase):
         self.assertIn(b'"category": "jokes"', response.data)
         self.assertIn(b'"category": "poems"', response.data)
         self.assertLess(response.data.index(b'id="content-stage"'), response.data.index(b'id="prev"'))
+        self.assertNotIn(b"Etherland words", response.data)
+        self.assertNotIn(b"8 local items", response.data)
+        self.assertIn(b'id="slide-progress-bar"', response.data)
+        self.assertIn(b'id="slide-status" class="sr-only"', response.data)
+        self.assertIn(b"await nextItem();", response.data)
+        self.assertIn(b"window.setTimeout", response.data)
 
     def test_slides_shuffle_local_items_for_each_view(self):
         with app.app_context():

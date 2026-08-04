@@ -2,14 +2,6 @@
 
 {% block content %}
 <main class="slides-page">
-  <div class="slides-heading">
-    <div>
-      <p class="eyebrow">Etherland words</p>
-      <h1>textr</h1>
-    </div>
-    <a href="{{ url_for('submit_quote') }}" class="btn btn-dark">Add something</a>
-  </div>
-
   <div class="category-wheel" role="group" aria-label="Choose a content type">
     <button class="wheel-option wheel-all" data-category="all" type="button">All</button>
     {% for key, label in content_types.items() %}
@@ -27,12 +19,16 @@
     </p>
   </section>
 
+  <div class="slide-progress" aria-hidden="true">
+    <span id="slide-progress-bar" class="slide-progress-bar"></span>
+  </div>
+
   <div class="slide-controls" aria-label="Slide controls">
     <button id="prev" class="slide-button" type="button" aria-label="Previous item" title="Previous">&larr;</button>
     <button id="pause" class="slide-button pause-button" type="button" aria-label="Pause slides" title="Pause">&#10074;&#10074;</button>
     <button id="next" class="slide-button" type="button" aria-label="Next item" title="Next">&rarr;</button>
   </div>
-  <p id="slide-status" class="slide-status" role="status"></p>
+  <p id="slide-status" class="sr-only" role="status"></p>
 </main>
 
 <script>
@@ -50,7 +46,10 @@
   const prevButton = document.getElementById('prev');
   const nextButton = document.getElementById('next');
   const pauseButton = document.getElementById('pause');
+  const progressBarElement = document.getElementById('slide-progress-bar');
   const wheelButtons = [...document.querySelectorAll('.wheel-option')];
+  const slideDuration = 8000;
+  const itemHistoryLimit = 100;
 
   let selectedCategory = initialCategory;
   let items = [];
@@ -104,10 +103,13 @@
 
   function transitionTo(callback) {
     stageElement.classList.add('is-changing');
-    window.setTimeout(() => {
-      callback();
-      stageElement.classList.remove('is-changing');
-    }, 180);
+    return new Promise((resolve) => {
+      window.setTimeout(() => {
+        callback();
+        stageElement.classList.remove('is-changing');
+        resolve();
+      }, 180);
+    });
   }
 
   async function fetchExternalItem() {
@@ -130,46 +132,41 @@
     }
   }
 
-  async function nextItem(allowExternal = true) {
+  async function nextItem() {
     if (currentIndex < items.length - 1) {
-      transitionTo(() => {
+      await transitionTo(() => {
         currentIndex += 1;
         renderItem();
       });
       return;
     }
 
-    if (!allowExternal) {
-      const reshuffled = filteredLocalItems();
-      if (reshuffled.length) {
-        items = reshuffled;
-        currentIndex = 0;
-        transitionTo(renderItem);
-      }
-      return;
-    }
-
+    const currentItem = items[currentIndex];
     const externalItem = await fetchExternalItem();
     if (externalItem) {
       items.push(externalItem);
-      transitionTo(() => {
+      await transitionTo(() => {
         currentIndex += 1;
+        if (items.length > itemHistoryLimit) {
+          items.shift();
+          currentIndex -= 1;
+        }
         renderItem();
       });
       return;
     }
 
-    const reshuffled = filteredLocalItems();
-    if (reshuffled.length) {
-      items = reshuffled;
+    const localFallback = filteredLocalItems();
+    if (currentItem?.source === 'textr' && localFallback.length) {
+      items = localFallback;
       currentIndex = 0;
-      transitionTo(renderItem);
+      await transitionTo(renderItem);
     }
   }
 
-  function previousItem() {
+  async function previousItem() {
     if (currentIndex === 0) return;
-    transitionTo(() => {
+    await transitionTo(() => {
       currentIndex -= 1;
       renderItem();
     });
@@ -187,9 +184,7 @@
     const url = new URL(window.location.href);
     url.searchParams.set('category', selectedCategory);
     window.history.replaceState({}, '', url);
-    statusElement.textContent = items.length
-      ? `${items.length} local ${items.length === 1 ? 'item' : 'items'}, in a new order.`
-      : 'No local items in this category yet.';
+    statusElement.textContent = '';
     renderItem();
     if (!items.length) {
       const externalItem = await fetchExternalItem();
@@ -198,12 +193,24 @@
         renderItem();
       }
     }
-    restartTimer();
+    scheduleNext();
   }
 
-  function restartTimer() {
-    window.clearInterval(timer);
-    if (playing) timer = window.setInterval(() => nextItem(false), 8000);
+  function restartProgress() {
+    progressBarElement.classList.remove('is-running', 'is-paused');
+    void progressBarElement.offsetWidth;
+    if (playing && !document.hidden) progressBarElement.classList.add('is-running');
+  }
+
+  function scheduleNext() {
+    window.clearTimeout(timer);
+    restartProgress();
+    if (playing && !document.hidden) {
+      timer = window.setTimeout(async () => {
+        await nextItem();
+        scheduleNext();
+      }, slideDuration);
+    }
   }
 
   function togglePlayback() {
@@ -211,28 +218,38 @@
     pauseButton.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
     pauseButton.setAttribute('aria-label', playing ? 'Pause slides' : 'Play slides');
     pauseButton.title = playing ? 'Pause' : 'Play';
-    restartTimer();
+    if (playing) {
+      scheduleNext();
+    } else {
+      window.clearTimeout(timer);
+      progressBarElement.classList.add('is-paused');
+    }
   }
 
-  prevButton.addEventListener('click', () => {
-    previousItem();
-    restartTimer();
+  prevButton.addEventListener('click', async () => {
+    await previousItem();
+    scheduleNext();
   });
-  nextButton.addEventListener('click', () => {
-    nextItem();
-    restartTimer();
+  nextButton.addEventListener('click', async () => {
+    await nextItem();
+    scheduleNext();
   });
   pauseButton.addEventListener('click', togglePlayback);
   wheelButtons.forEach((button) => {
     button.addEventListener('click', () => chooseCategory(button.dataset.category));
   });
-  document.addEventListener('keydown', (event) => {
-    if (event.key === 'ArrowLeft') previousItem();
-    if (event.key === 'ArrowRight') nextItem();
+  document.addEventListener('keydown', async (event) => {
+    if (event.key === 'ArrowLeft') await previousItem();
+    if (event.key === 'ArrowRight') await nextItem();
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') scheduleNext();
   });
   document.addEventListener('visibilitychange', () => {
-    if (document.hidden) window.clearInterval(timer);
-    else restartTimer();
+    if (document.hidden) {
+      window.clearTimeout(timer);
+      progressBarElement.classList.add('is-paused');
+    } else if (playing) {
+      scheduleNext();
+    }
   });
 
   chooseCategory(initialCategory);
@@ -244,18 +261,6 @@
     padding-bottom: 2rem;
     color: #151a17;
   }
-  .slides-heading {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-  }
-  .slides-heading h1 {
-    margin: 0;
-    font-size: 2rem;
-    font-weight: 600;
-  }
-  .eyebrow,
   .content-type {
     margin: 0 0 0.25rem;
     color: #44705a;
@@ -268,7 +273,7 @@
     position: relative;
     width: 12rem;
     height: 12rem;
-    margin: 0.5rem auto 0;
+    margin: 0 auto;
     border: 1px solid #cbd5cf;
     border-radius: 50%;
     background: #f5f7f6;
@@ -327,11 +332,35 @@
   .content-author { margin: 1.25rem 0 0; color: #44524b; }
   .content-source { margin: 0.5rem 0 0; color: #65736c; font-size: 0.8rem; }
   .content-source a { color: inherit; text-decoration: underline; }
+  .slide-progress {
+    width: min(24rem, calc(100% - 2rem));
+    height: 2px;
+    margin: 0 auto 1rem;
+    overflow: hidden;
+    background: #d8dfdb;
+  }
+  .slide-progress-bar {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #44705a;
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  .slide-progress-bar.is-running {
+    animation: slide-progress 8s linear forwards;
+  }
+  .slide-progress-bar.is-paused {
+    animation-play-state: paused;
+  }
+  @keyframes slide-progress {
+    to { transform: scaleX(1); }
+  }
   .slide-controls {
     display: flex;
     justify-content: center;
     gap: 0.75rem;
-    margin-top: 0.5rem;
+    margin-top: 0;
   }
   .slide-button {
     width: 3rem;
@@ -350,13 +379,6 @@
   }
   .slide-button:disabled { cursor: not-allowed; opacity: 0.35; }
   .pause-button { font-size: 0.8rem; }
-  .slide-status {
-    min-height: 1.25rem;
-    margin: 0.75rem 0 0;
-    color: #65736c;
-    font-size: 0.8rem;
-    text-align: center;
-  }
   @media (max-width: 575px) {
     .slides-page { min-height: calc(100vh - 6rem); }
     .category-wheel { width: 10.5rem; height: 10.5rem; }
@@ -367,6 +389,7 @@
   @media (prefers-reduced-motion: reduce) {
     .content-stage,
     .wheel-option { transition: none; }
+    .slide-progress-bar.is-running { animation: none; transform: scaleX(1); }
   }
 </style>
 {% endblock %}

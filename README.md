@@ -32,7 +32,7 @@ Create the public `Quotes`, `Jokes`, and `Poems` categories in Supabase. Existin
 
 ## Slides and external sources
 
-Every Slides request shuffles the local Supabase content. Visitors can select All, Quotes, Jokes, or Poems from the category wheel. Once they reach the end of the selected local set, the browser requests another item from `/api/content/random`:
+Every Slides request shuffles the local Supabase content. Visitors can select All, Quotes, Jokes, or Poems from the category wheel. After one pass through the selected local set, the slideshow continues with items from `/api/content/random`. All mode randomly chooses among the three providers for each new item; a specific category keeps using its matching provider.
 
 - Quotes: ZenQuotes
 - Jokes: JokeAPI with `safe-mode`
