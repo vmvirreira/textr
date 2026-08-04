@@ -275,6 +275,17 @@ def fetch_external_content(content_type):
     }
 
 
+def fetch_random_external_content():
+    content_types = list(CONTENT_TYPES)
+    SYSTEM_RANDOM.shuffle(content_types)
+    for content_type in content_types:
+        try:
+            return fetch_external_content(content_type)
+        except RuntimeError:
+            continue
+    raise RuntimeError("External content providers are temporarily unavailable.")
+
+
 def create_quote(text, author, category_id):
     if not use_supabase_rest():
         quote = Quote(text=text, author=author, category_id=category_id)
@@ -559,10 +570,12 @@ def register_routes(app):
         content_type = request.args.get("type", "all").casefold()
         if content_type not in {"all", *CONTENT_TYPES}:
             return jsonify({"error": "Choose all, quotes, jokes, or poems."}), 400
-        if content_type == "all":
-            content_type = SYSTEM_RANDOM.choice(list(CONTENT_TYPES))
         try:
-            item = fetch_external_content(content_type)
+            item = (
+                fetch_random_external_content()
+                if content_type == "all"
+                else fetch_external_content(content_type)
+            )
         except RuntimeError as error:
             return jsonify({"error": str(error)}), 503
         response = jsonify(item)

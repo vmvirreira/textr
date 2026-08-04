@@ -9,6 +9,16 @@
     {% endfor %}
   </div>
 
+  <div class="words-radio" role="group" aria-label="Words background radio">
+    <div class="radio-label"><span>EDM / CHILL RADIO</span><i id="radio-live-indicator"></i></div>
+    <button id="radio-prev" type="button" aria-label="Previous radio station" title="Previous station">&larr;</button>
+    <button id="radio-play" class="radio-play" type="button" aria-label="Play background radio" title="Play">&#9654;</button>
+    <button id="radio-next" type="button" aria-label="Next radio station" title="Next station">&rarr;</button>
+    <div class="radio-station"><b id="radio-station-name"></b><span id="radio-station-description"></span></div>
+    <p id="radio-status" role="status">Paused</p>
+    <audio id="radio-audio" preload="none"></audio>
+  </div>
+
   <section id="content-stage" class="content-stage" aria-live="polite">
     <p id="content-type" class="content-type"></p>
     <h2 id="content-title" class="content-title" hidden></h2>
@@ -50,12 +60,27 @@
   const wheelButtons = [...document.querySelectorAll('.wheel-option')];
   const slideDuration = 8000;
   const itemHistoryLimit = 100;
+  const radioStations = [
+    { name: 'Groove Salad', description: 'Ambient and downtempo', source: 'https://ice5.somafm.com/groovesalad-128-mp3' },
+    { name: 'Beat Blender', description: 'Deep house and downtempo chill', source: 'https://ice5.somafm.com/beatblender-128-mp3' },
+    { name: 'Groove Salad Classic', description: 'Classic ambient and electronic', source: 'https://ice5.somafm.com/gsclassic-128-mp3' },
+    { name: 'Space Station Soma', description: 'Ambient and mid-tempo electronica', source: 'https://ice5.somafm.com/spacestation-128-mp3' },
+    { name: 'Deep Space One', description: 'Deep ambient electronic', source: 'https://ice5.somafm.com/deepspaceone-128-mp3' },
+  ];
+  const radioAudio = document.getElementById('radio-audio');
+  const radioPlayButton = document.getElementById('radio-play');
+  const radioStationName = document.getElementById('radio-station-name');
+  const radioStationDescription = document.getElementById('radio-station-description');
+  const radioStatus = document.getElementById('radio-status');
+  const radioLiveIndicator = document.getElementById('radio-live-indicator');
 
   let selectedCategory = initialCategory;
   let items = [];
   let currentIndex = 0;
   let loading = false;
   let playing = true;
+  let apiMode = false;
+  let radioStationIndex = 0;
   let timer;
 
   function shuffled(values) {
@@ -142,7 +167,7 @@
       return;
     }
 
-    const currentItem = items[currentIndex];
+    apiMode = true;
     const externalItem = await fetchExternalItem();
     if (externalItem) {
       items.push(externalItem);
@@ -157,12 +182,6 @@
       return;
     }
 
-    const localFallback = filteredLocalItems();
-    if (currentItem?.source === 'textr' && localFallback.length) {
-      items = localFallback;
-      currentIndex = 0;
-      await transitionTo(renderItem);
-    }
   }
 
   async function previousItem() {
@@ -176,6 +195,7 @@
   async function chooseCategory(category) {
     selectedCategory = category;
     currentIndex = 0;
+    apiMode = false;
     items = filteredLocalItems();
     wheelButtons.forEach((button) => {
       const active = button.dataset.category === selectedCategory;
@@ -188,6 +208,7 @@
     statusElement.textContent = '';
     renderItem();
     if (!items.length) {
+      apiMode = true;
       const externalItem = await fetchExternalItem();
       if (externalItem && selectedCategory === category) {
         items = [externalItem];
@@ -227,6 +248,50 @@
     }
   }
 
+  function renderRadioStation() {
+    const station = radioStations[radioStationIndex];
+    radioStationName.textContent = station.name;
+    radioStationDescription.textContent = station.description;
+    radioAudio.src = station.source;
+    radioAudio.load();
+  }
+
+  function setRadioPlaying(isPlaying) {
+    radioPlayButton.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+    radioPlayButton.setAttribute('aria-label', isPlaying ? 'Pause background radio' : 'Play background radio');
+    radioPlayButton.title = isPlaying ? 'Pause' : 'Play';
+    radioLiveIndicator.classList.toggle('is-live', isPlaying);
+  }
+
+  async function playRadio() {
+    try {
+      await radioAudio.play();
+      radioStatus.textContent = 'On air';
+    } catch (error) {
+      radioStatus.textContent = 'Stream unavailable - try next';
+      setRadioPlaying(false);
+    }
+  }
+
+  async function toggleRadio() {
+    if (!radioAudio.paused) {
+      radioAudio.pause();
+      radioStatus.textContent = 'Paused';
+      return;
+    }
+    radioStatus.textContent = 'Tuning...';
+    await playRadio();
+  }
+
+  async function changeRadioStation(direction, continuePlaying = !radioAudio.paused) {
+    radioAudio.pause();
+    radioStationIndex = (radioStationIndex + direction + radioStations.length) % radioStations.length;
+    radioStatus.textContent = 'Tuning...';
+    renderRadioStation();
+    if (continuePlaying) await playRadio();
+    else radioStatus.textContent = 'Paused';
+  }
+
   prevButton.addEventListener('click', async () => {
     await previousItem();
     scheduleNext();
@@ -236,6 +301,16 @@
     scheduleNext();
   });
   pauseButton.addEventListener('click', togglePlayback);
+  radioPlayButton.addEventListener('click', toggleRadio);
+  document.getElementById('radio-prev').addEventListener('click', () => changeRadioStation(-1));
+  document.getElementById('radio-next').addEventListener('click', () => changeRadioStation(1));
+  radioAudio.addEventListener('play', () => setRadioPlaying(true));
+  radioAudio.addEventListener('pause', () => setRadioPlaying(false));
+  radioAudio.addEventListener('ended', () => changeRadioStation(1, true));
+  radioAudio.addEventListener('error', () => {
+    radioStatus.textContent = 'Stream unavailable - try next';
+    setRadioPlaying(false);
+  });
   wheelButtons.forEach((button) => {
     button.addEventListener('click', () => chooseCategory(button.dataset.category));
   });
@@ -253,6 +328,7 @@
     }
   });
 
+  renderRadioStation();
   chooseCategory(initialCategory);
 </script>
 
@@ -270,6 +346,72 @@
     letter-spacing: 0;
     text-transform: uppercase;
   }
+  .words-radio {
+    display: grid;
+    grid-template-columns: auto 2.5rem 2.75rem 2.5rem minmax(10rem, 1fr) auto;
+    align-items: center;
+    gap: 0.4rem;
+    width: min(56rem, calc(100% - 2rem));
+    min-height: 3.75rem;
+    margin: 1.25rem auto 0;
+    padding: 0.5rem 0;
+    border-top: 1px solid #cbd5cf;
+    border-bottom: 1px solid #cbd5cf;
+  }
+  .words-radio button {
+    width: 100%;
+    height: 2.25rem;
+    padding: 0;
+    border: 1px solid #9eaca5;
+    border-radius: 0;
+    background: #ffffff;
+    color: #173f2c;
+  }
+  .words-radio button:hover,
+  .words-radio button:focus-visible,
+  .words-radio .radio-play {
+    border-color: #173f2c;
+    background: #eef3f0;
+    outline: none;
+  }
+  .radio-play { font-size: 0.75rem; }
+  .radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-right: 0.5rem;
+    color: #65736c;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .radio-label i {
+    width: 0.45rem;
+    height: 0.45rem;
+    border-radius: 50%;
+    background: #a5aea9;
+  }
+  .radio-label i.is-live {
+    background: #2c8b5a;
+    box-shadow: 0 0 0.5rem rgba(44, 139, 90, 0.45);
+  }
+  .radio-station {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 0.65rem;
+    padding-left: 0.5rem;
+  }
+  .radio-station b { white-space: nowrap; }
+  .radio-station span,
+  .words-radio > p {
+    overflow: hidden;
+    color: #65736c;
+    font-size: 0.7rem;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .words-radio > p { margin: 0; text-align: right; }
   .category-wheel {
     position: relative;
     width: 12rem;
@@ -386,6 +528,15 @@
     .wheel-option { min-width: 4rem; font-size: 0.85rem; }
     .content-stage { min-height: 18rem; padding-top: 1.25rem; }
     .content-text { font-size: 1.35rem; }
+    .words-radio {
+      grid-template-columns: 2.2rem 2.5rem 2.2rem minmax(5rem, 1fr);
+      gap: 0.25rem;
+    }
+    .radio-label,
+    .radio-station span,
+    .words-radio > p { display: none; }
+    .radio-station { padding-left: 0.35rem; }
+    .radio-station b { overflow: hidden; font-size: 0.8rem; text-overflow: ellipsis; }
   }
   @media (prefers-reduced-motion: reduce) {
     .content-stage,
