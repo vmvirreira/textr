@@ -2,6 +2,7 @@ import os
 import json
 import hmac
 import random
+import re
 from functools import wraps
 from types import SimpleNamespace
 from urllib.error import HTTPError, URLError
@@ -583,6 +584,34 @@ def register_routes(app):
         except RuntimeError as error:
             return jsonify({"error": str(error)}), 503
         response = jsonify(item)
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.get("/content/next.js")
+    def external_content_script():
+        content_type = request.args.get("type", "all").casefold()
+        request_id = request.args.get("request_id", "")
+        if content_type not in {"all", *CONTENT_TYPES} or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", request_id):
+            return "/* Invalid external content request. */", 400, {"Content-Type": "application/javascript"}
+
+        try:
+            item = (
+                fetch_random_external_content()
+                if content_type == "all"
+                else fetch_external_content(content_type)
+            )
+            payload = {"requestId": request_id, "item": item}
+        except RuntimeError as error:
+            payload = {"requestId": request_id, "error": str(error)}
+
+        serialized = (
+            json.dumps(payload, ensure_ascii=True)
+            .replace("<", r"\u003c")
+            .replace(">", r"\u003e")
+            .replace("&", r"\u0026")
+        )
+        response = make_response(f"window.textrReceiveExternalItem({serialized});")
+        response.headers["Content-Type"] = "application/javascript; charset=utf-8"
         response.headers["Cache-Control"] = "no-store"
         return response
 
