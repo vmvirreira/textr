@@ -223,9 +223,14 @@ class TextrRoutesTest(unittest.TestCase):
         self.assertIn(b"currentIndex = items.length - 1", response.data)
         self.assertNotIn(b"items = localFallback", response.data)
         self.assertIn(
-            b'id="radio-play" class="radio-play" type="button" aria-label="Play background radio" title="Play"></button>',
+            b'id="radio-play" class="radio-play playback-toggle" type="button" aria-label="Play background radio" title="Play"></button>',
             response.data,
         )
+        self.assertIn(
+            b'id="pause" class="slide-button pause-button playback-toggle is-playing" type="button" aria-label="Pause slides" title="Pause"></button>',
+            response.data,
+        )
+        self.assertIn(b"pauseButton.classList.toggle('is-playing', playing)", response.data)
         self.assertIn(b'id="radio-next"', response.data)
         self.assertIn(b"Groove Salad", response.data)
 

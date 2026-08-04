@@ -12,7 +12,7 @@
   <div class="words-radio" role="group" aria-label="Words background radio">
     <div class="radio-label"><span>EDM / CHILL RADIO</span><i id="radio-live-indicator"></i></div>
     <button id="radio-prev" type="button" aria-label="Previous radio station" title="Previous station">&larr;</button>
-    <button id="radio-play" class="radio-play" type="button" aria-label="Play background radio" title="Play"></button>
+    <button id="radio-play" class="radio-play playback-toggle" type="button" aria-label="Play background radio" title="Play"></button>
     <button id="radio-next" type="button" aria-label="Next radio station" title="Next station">&rarr;</button>
     <div class="radio-station"><b id="radio-station-name"></b><span id="radio-station-description"></span></div>
     <p id="radio-status" role="status">Paused</p>
@@ -35,7 +35,7 @@
 
   <div class="slide-controls" aria-label="Slide controls">
     <button id="prev" class="slide-button" type="button" aria-label="Previous item" title="Previous">&larr;</button>
-    <button id="pause" class="slide-button pause-button" type="button" aria-label="Pause slides" title="Pause">&#10074;&#10074;</button>
+    <button id="pause" class="slide-button pause-button playback-toggle is-playing" type="button" aria-label="Pause slides" title="Pause"></button>
     <button id="next" class="slide-button" type="button" aria-label="Next item" title="Next">&rarr;</button>
   </div>
   <p id="slide-status" class="sr-only" role="status"></p>
@@ -305,7 +305,7 @@
 
   function togglePlayback() {
     playing = !playing;
-    pauseButton.innerHTML = playing ? '&#10074;&#10074;' : '&#9654;';
+    pauseButton.classList.toggle('is-playing', playing);
     pauseButton.setAttribute('aria-label', playing ? 'Pause slides' : 'Play slides');
     pauseButton.title = playing ? 'Pause' : 'Play';
     if (playing) {
@@ -442,7 +442,7 @@
     background: #eef3f0;
     outline: none;
   }
-  .radio-play::before {
+  .playback-toggle::before {
     display: block;
     width: 0;
     height: 0;
@@ -452,7 +452,7 @@
     border-left: 0.5rem solid currentColor;
     content: '';
   }
-  .radio-play.is-playing::before {
+  .playback-toggle.is-playing::before {
     width: 0.5rem;
     height: 0.65rem;
     border: 0;
@@ -605,7 +605,6 @@
     outline: none;
   }
   .slide-button:disabled { cursor: not-allowed; opacity: 0.35; }
-  .pause-button { font-size: 0.8rem; }
   @media (max-width: 575px) {
     .slides-page { min-height: calc(100vh - 6rem); }
     .category-wheel { width: 10.5rem; height: 10.5rem; }
