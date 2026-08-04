@@ -118,13 +118,14 @@
     nextButton.disabled = true;
     statusElement.textContent = 'Finding another item...';
     try {
-      const response = await fetch(`/api/content/random?type=${encodeURIComponent(selectedCategory)}`);
+      const providerType = selectedCategory === 'all' ? 'all' : selectedCategory;
+      const response = await fetch(`/api/content/random?type=${encodeURIComponent(providerType)}`);
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'Content provider unavailable.');
       statusElement.textContent = `Added from ${payload.source}.`;
       return payload;
     } catch (error) {
-      statusElement.textContent = 'The outside source is unavailable. Local items were reshuffled.';
+      statusElement.textContent = 'The outside source is unavailable. The slideshow will try again.';
       return null;
     } finally {
       loading = false;

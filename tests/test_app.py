@@ -38,6 +38,12 @@ class TextrRoutesTest(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/admin/login", response.headers["Location"])
 
+    def test_header_brand_uses_home_and_omits_slides_link(self):
+        response = self.client.get("/quotes_carousel")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'class="navbar-brand" href="/"', response.data)
+        self.assertNotIn(b">Slides</a>", response.data)
+
     def test_public_submission_is_quarantined_from_slides(self):
         with app.app_context():
             curated = create_category("Quotes")
@@ -163,6 +169,22 @@ class TextrRoutesTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["category"], "jokes")
         fetch_external_content.assert_called_once_with("jokes")
+
+    @patch("app.fetch_external_content")
+    @patch("app.SYSTEM_RANDOM.choice", return_value="poems")
+    def test_all_external_requests_choose_a_random_provider(self, choose, fetch_external_content):
+        fetch_external_content.return_value = {
+            "text": "API poem",
+            "author": "Poet",
+            "category": "poems",
+            "source": "PoetryDB",
+            "source_url": "https://poetrydb.org/",
+        }
+        response = self.client.get("/api/content/random?type=all")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["category"], "poems")
+        choose.assert_called_once()
+        fetch_external_content.assert_called_once_with("poems")
 
     def test_external_content_endpoint_rejects_unknown_type(self):
         response = self.client.get("/api/content/random?type=stories")
