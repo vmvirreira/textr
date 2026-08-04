@@ -170,7 +170,8 @@
         reject: (error) => finish(reject, error),
       });
       script.async = true;
-      script.src = `/content/next.js?type=${encodeURIComponent(providerType)}&request_id=${encodeURIComponent(requestId)}`;
+      const routePrefix = window.location.pathname.startsWith('/words/') ? '/words' : '';
+      script.src = `${routePrefix}/content/next.js?type=${encodeURIComponent(providerType)}&request_id=${encodeURIComponent(requestId)}`;
       script.onerror = () => finish(reject, new Error('External content request failed.'));
       document.head.appendChild(script);
     });
