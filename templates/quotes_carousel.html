@@ -12,7 +12,7 @@
   <div class="words-radio" role="group" aria-label="Words background radio">
     <div class="radio-label"><span>EDM / CHILL RADIO</span><i id="radio-live-indicator"></i></div>
     <button id="radio-prev" type="button" aria-label="Previous radio station" title="Previous station">&larr;</button>
-    <button id="radio-play" class="radio-play" type="button" aria-label="Play background radio" title="Play">&#9654;</button>
+    <button id="radio-play" class="radio-play" type="button" aria-label="Play background radio" title="Play"></button>
     <button id="radio-next" type="button" aria-label="Next radio station" title="Next station">&rarr;</button>
     <div class="radio-station"><b id="radio-station-name"></b><span id="radio-station-description"></span></div>
     <p id="radio-status" role="status">Paused</p>
@@ -79,7 +79,8 @@
   let currentIndex = 0;
   let loading = false;
   let playing = true;
-  let apiMode = false;
+  let externalItemPromise = null;
+  let externalRequestCategory = null;
   let radioStationIndex = 0;
   let timer;
 
@@ -137,22 +138,45 @@
     });
   }
 
+  async function requestExternalItem(category) {
+    const providerType = category === 'all' ? 'all' : category;
+    const response = await fetch(`/api/content/random?type=${encodeURIComponent(providerType)}`, {
+      cache: 'no-store',
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Content provider unavailable.');
+    return payload;
+  }
+
+  function prefetchExternalItem() {
+    if (externalItemPromise && externalRequestCategory === selectedCategory) return;
+    const category = selectedCategory;
+    externalRequestCategory = category;
+    externalItemPromise = requestExternalItem(category)
+      .then((item) => ({ category, item }))
+      .catch(() => ({ category, item: null }));
+  }
+
   async function fetchExternalItem() {
     if (loading) return null;
+    if (!externalItemPromise || externalRequestCategory !== selectedCategory) prefetchExternalItem();
+    const requestPromise = externalItemPromise;
     loading = true;
     nextButton.disabled = true;
     statusElement.textContent = 'Finding another item...';
     try {
-      const providerType = selectedCategory === 'all' ? 'all' : selectedCategory;
-      const response = await fetch(`/api/content/random?type=${encodeURIComponent(providerType)}`);
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'Content provider unavailable.');
-      statusElement.textContent = `Added from ${payload.source}.`;
-      return payload;
-    } catch (error) {
-      statusElement.textContent = 'The outside source is unavailable. The slideshow will try again.';
-      return null;
+      const result = await requestPromise;
+      if (result.category !== selectedCategory || !result.item) {
+        statusElement.textContent = 'The outside source is unavailable. The slideshow will try again.';
+        return null;
+      }
+      statusElement.textContent = `Added from ${result.item.source}.`;
+      return result.item;
     } finally {
+      if (externalItemPromise === requestPromise) {
+        externalItemPromise = null;
+        externalRequestCategory = null;
+      }
       loading = false;
       nextButton.disabled = false;
     }
@@ -167,10 +191,10 @@
       return;
     }
 
-    apiMode = true;
     const externalItem = await fetchExternalItem();
     if (externalItem) {
       items.push(externalItem);
+      prefetchExternalItem();
       await transitionTo(() => {
         currentIndex += 1;
         if (items.length > itemHistoryLimit) {
@@ -195,7 +219,8 @@
   async function chooseCategory(category) {
     selectedCategory = category;
     currentIndex = 0;
-    apiMode = false;
+    externalItemPromise = null;
+    externalRequestCategory = null;
     items = filteredLocalItems();
     wheelButtons.forEach((button) => {
       const active = button.dataset.category === selectedCategory;
@@ -208,12 +233,15 @@
     statusElement.textContent = '';
     renderItem();
     if (!items.length) {
-      apiMode = true;
+      prefetchExternalItem();
       const externalItem = await fetchExternalItem();
       if (externalItem && selectedCategory === category) {
         items = [externalItem];
+        prefetchExternalItem();
         renderItem();
       }
+    } else {
+      prefetchExternalItem();
     }
     scheduleNext();
   }
@@ -257,7 +285,7 @@
   }
 
   function setRadioPlaying(isPlaying) {
-    radioPlayButton.innerHTML = isPlaying ? '&#10074;&#10074;' : '&#9654;';
+    radioPlayButton.classList.toggle('is-playing', isPlaying);
     radioPlayButton.setAttribute('aria-label', isPlaying ? 'Pause background radio' : 'Play background radio');
     radioPlayButton.title = isPlaying ? 'Pause' : 'Play';
     radioLiveIndicator.classList.toggle('is-live', isPlaying);
@@ -374,7 +402,23 @@
     background: #eef3f0;
     outline: none;
   }
-  .radio-play { font-size: 0.75rem; }
+  .radio-play::before {
+    display: block;
+    width: 0;
+    height: 0;
+    margin: 0 auto;
+    border-top: 0.32rem solid transparent;
+    border-bottom: 0.32rem solid transparent;
+    border-left: 0.5rem solid currentColor;
+    content: '';
+  }
+  .radio-play.is-playing::before {
+    width: 0.5rem;
+    height: 0.65rem;
+    border: 0;
+    border-right: 0.18rem solid currentColor;
+    border-left: 0.18rem solid currentColor;
+  }
   .radio-label {
     display: flex;
     align-items: center;

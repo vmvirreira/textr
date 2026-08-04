@@ -8,7 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from flask import Flask, abort, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, abort, flash, jsonify, make_response, redirect, render_template, request, session, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect, FlaskForm
 from sqlalchemy.pool import NullPool
@@ -558,12 +558,16 @@ def register_routes(app):
         selected = request.args.get("category", "all").casefold()
         if selected not in {"all", *CONTENT_TYPES}:
             selected = "all"
-        return render_template(
-            "quotes_carousel.html",
-            quotes=quotes_data,
-            content_types=CONTENT_TYPES,
-            selected_category=selected,
+        response = make_response(
+            render_template(
+                "quotes_carousel.html",
+                quotes=quotes_data,
+                content_types=CONTENT_TYPES,
+                selected_category=selected,
+            )
         )
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.get("/api/content/random")
     def random_external_content():

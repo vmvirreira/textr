@@ -214,9 +214,14 @@ class TextrRoutesTest(unittest.TestCase):
     def test_slides_continue_to_api_and_include_radio_controls(self):
         response = self.client.get("/quotes_carousel")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"apiMode = true", response.data)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.assertIn(b"prefetchExternalItem()", response.data)
+        self.assertIn(b"cache: 'no-store'", response.data)
         self.assertNotIn(b"items = localFallback", response.data)
-        self.assertIn(b'id="radio-play"', response.data)
+        self.assertIn(
+            b'id="radio-play" class="radio-play" type="button" aria-label="Play background radio" title="Play"></button>',
+            response.data,
+        )
         self.assertIn(b'id="radio-next"', response.data)
         self.assertIn(b"Groove Salad", response.data)
 
