@@ -32,13 +32,15 @@ Create the public `Quotes`, `Jokes`, and `Poems` categories in Supabase. Existin
 
 ## Slides and external sources
 
-Every Slides request shuffles the local Supabase content. Visitors can select All, Quotes, Jokes, or Poems from the category wheel. After one pass through the selected local set, the slideshow continues with items from `/api/content/random`. All mode randomly chooses among the three providers for each new item; a specific category keeps using its matching provider.
+Every Slides request shuffles the local Supabase content. Visitors can select All, Quotes, Jokes, or Poems from the category wheel. After one pass through the selected local set, the slideshow continues with items from `/api/content/random`. All mode tries the three providers in a new random order for each item, so one unavailable provider does not interrupt the stream. A specific category keeps using its matching provider.
 
 - Quotes: ZenQuotes
 - Jokes: JokeAPI with `safe-mode`
 - Poems: PoetryDB
 
-External requests run on the server, use short timeouts, and do not require browser-side credentials. Provider content is labeled and linked in the slide. If a provider is unavailable, the carousel reshuffles the local set instead of failing.
+External requests run on the server, use short timeouts, and do not require browser-side credentials. Provider content is labeled and linked in the slide. If every eligible provider is unavailable, the current item remains visible and the next automatic or manual advance retries the request.
+
+The slide page also includes an optional EDM/chill radio player. Its previous, play/pause, and next controls cycle through HTTPS SomaFM streams independently of the text slideshow.
 
 ## Administration
 

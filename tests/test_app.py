@@ -171,8 +171,8 @@ class TextrRoutesTest(unittest.TestCase):
         fetch_external_content.assert_called_once_with("jokes")
 
     @patch("app.fetch_external_content")
-    @patch("app.SYSTEM_RANDOM.choice", return_value="poems")
-    def test_all_external_requests_choose_a_random_provider(self, choose, fetch_external_content):
+    @patch("app.SYSTEM_RANDOM.shuffle", side_effect=lambda values: values.reverse())
+    def test_all_external_requests_choose_a_random_provider(self, shuffle, fetch_external_content):
         fetch_external_content.return_value = {
             "text": "API poem",
             "author": "Poet",
@@ -183,8 +183,42 @@ class TextrRoutesTest(unittest.TestCase):
         response = self.client.get("/api/content/random?type=all")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.get_json()["category"], "poems")
-        choose.assert_called_once()
+        shuffle.assert_called_once()
         fetch_external_content.assert_called_once_with("poems")
+
+    @patch("app.fetch_external_content")
+    @patch("app.SYSTEM_RANDOM.shuffle", side_effect=lambda values: values.reverse())
+    def test_all_external_requests_try_another_provider_after_failure(self, shuffle, fetch_external_content):
+        fetch_external_content.side_effect = [
+            RuntimeError("PoetryDB unavailable"),
+            {
+                "text": "API joke",
+                "author": "JokeAPI",
+                "category": "jokes",
+                "source": "JokeAPI",
+                "source_url": "https://jokeapi.dev/",
+            },
+        ]
+        response = self.client.get("/api/content/random?type=all")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["category"], "jokes")
+        self.assertEqual(fetch_external_content.call_count, 2)
+        shuffle.assert_called_once()
+
+    @patch("app.fetch_external_content", side_effect=RuntimeError("Unavailable"))
+    def test_all_external_requests_fail_only_after_every_provider(self, fetch_external_content):
+        response = self.client.get("/api/content/random?type=all")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(fetch_external_content.call_count, len(("quotes", "jokes", "poems")))
+
+    def test_slides_continue_to_api_and_include_radio_controls(self):
+        response = self.client.get("/quotes_carousel")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"apiMode = true", response.data)
+        self.assertNotIn(b"items = localFallback", response.data)
+        self.assertIn(b'id="radio-play"', response.data)
+        self.assertIn(b'id="radio-next"', response.data)
+        self.assertIn(b"Groove Salad", response.data)
 
     def test_external_content_endpoint_rejects_unknown_type(self):
         response = self.client.get("/api/content/random?type=stories")
