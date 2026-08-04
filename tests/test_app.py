@@ -217,6 +217,7 @@ class TextrRoutesTest(unittest.TestCase):
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         self.assertIn(b"prefetchExternalItem()", response.data)
         self.assertIn(b"document.createElement('script')", response.data)
+        self.assertIn(b"window.location.pathname.startsWith('/words/')", response.data)
         self.assertIn(b"External content request timed out.", response.data)
         self.assertIn(b"if (navigating) return", response.data)
         self.assertIn(b"currentIndex = items.length - 1", response.data)
