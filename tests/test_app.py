@@ -216,7 +216,8 @@ class TextrRoutesTest(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["Cache-Control"], "no-store")
         self.assertIn(b"prefetchExternalItem()", response.data)
-        self.assertIn(b"cache: 'no-store'", response.data)
+        self.assertIn(b"document.createElement('script')", response.data)
+        self.assertIn(b"External content request timed out.", response.data)
         self.assertIn(b"if (navigating) return", response.data)
         self.assertIn(b"currentIndex = items.length - 1", response.data)
         self.assertNotIn(b"items = localFallback", response.data)
@@ -226,6 +227,27 @@ class TextrRoutesTest(unittest.TestCase):
         )
         self.assertIn(b'id="radio-next"', response.data)
         self.assertIn(b"Groove Salad", response.data)
+
+    @patch("app.fetch_external_content")
+    def test_external_content_script_returns_callback(self, fetch_external_content):
+        fetch_external_content.return_value = {
+            "text": "Script joke",
+            "author": "JokeAPI",
+            "category": "jokes",
+            "source": "JokeAPI",
+            "source_url": "https://jokeapi.dev/",
+        }
+        response = self.client.get("/content/next.js?type=jokes&request_id=request-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["Cache-Control"], "no-store")
+        self.assertIn(b"window.textrReceiveExternalItem", response.data)
+        self.assertIn(b'"requestId": "request-1"', response.data)
+        self.assertIn(b"Script joke", response.data)
+        fetch_external_content.assert_called_once_with("jokes")
+
+    def test_external_content_script_rejects_invalid_request_id(self):
+        response = self.client.get("/content/next.js?type=all&request_id=not%20valid")
+        self.assertEqual(response.status_code, 400)
 
     def test_external_content_endpoint_rejects_unknown_type(self):
         response = self.client.get("/api/content/random?type=stories")
